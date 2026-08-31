@@ -99,3 +99,8 @@ python main.py
 Al correrlo, cada versión te devolverá sus respectivas gráficas de correlación y del resultado final qu compara las predicciones con los valores reales de Ring. Para la versión sin framework, también se muestra una gráfica que muestra el descenso de MSE a lo de las épocas.
 
 Igualmente, ambas devolverán en consola los valores finales de MSE y RMSE para el conjunto de entrenamiento y de pruebas, y mostrará una tabla para comparar los primeros 10 valores de Ring que predijo con los valores reales de Ring para ese abulón.
+
+## Estado del reporte
+Me temo que actualmente no he podido terminar el reporte. Lo dejé hasta el final porque primero quise crear los código del modelo sin y con frameword en colab, luego apsarlos en limpio en un .py y ahora sí ya hacer el reporte, pero no me dió el tiempo. Una disculpa. Seguiré trabajando para terminarlo y entregárselo lo antes posible.
+
+Aunque es verdad que llevo un pequeño avance, y sus comentarios me servirían aún para lo poco que llevo. Muchas gracias por su comprensión.
