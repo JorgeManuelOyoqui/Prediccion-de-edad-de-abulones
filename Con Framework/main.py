@@ -1,5 +1,6 @@
 # ============================================================
-# 1. IMPORTACIÓN DE LIBRERÍAS
+# Regresión Lineal con frameworks (scikit-learn)
+# Jorge Manuel Oyoqui Aguilera | A01711783
 # ============================================================
 
 from pathlib import Path
@@ -12,221 +13,164 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
+
+RANDOM_STATE = 42
+
 
 # ============================================================
-# 2. CARGA DEL DATASET
+# 1. CARGA DEL DATASET
 # ============================================================
 
-columns = [
-    "Sex",
-    "Length",
-    "Diameter",
-    "Height", 
-    "Whole", 
-    "Shucked", 
-    "Viscera", 
-    "Shell", 
-    "Rings"
-]
+def load_dataset(data_path: Path) -> pd.DataFrame:
+    columns = [
+        "Sex", "Length", "Diameter", "Height",
+        "Whole", "Shucked", "Viscera", "Shell", "Rings"
+    ]
+    return pd.read_csv(data_path, names=columns)
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_PATH = BASE_DIR / "abalone" / "abalone.data"
-
-df = pd.read_csv(DATA_PATH, names = columns)
 
 # ============================================================
-# 3. LIMPIEZA DE DATOS
+# 2. LIMPIEZA DE DATOS
 # ============================================================
 
-# Elimino los registros con Height = 0
-# ya que son valores inconsistentes para dicha variable
-df = df[df['Height'] != 0]
+def clean_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    # Elimino los registros con Height = 0, ya que son valores
+    # físicamente inconsistentes para esa variable.
+    df = df[df["Height"] != 0]
 
-# Obtengo las columnas con valores numéricos que usaré para detectar posibles outliers
-# Excluyo a Rings por que es la variable objetivo (o a predecir)
-numerical_cols = df.select_dtypes(include=['float64', 'int64']).columns.drop('Rings', errors='ignore')
-#Genero una lista vacía para guardar la cantidad de posibles outliers
-outlier_indices = []
+    # El único outlier que sí elimino es el del registro 2051, ya que tiene
+    # una altura (1.13mm) irregular e inconsistente con el resto de sus
+    # características físicas
+    df = df.drop(index=2051)
 
-# Uso cuartíles donde, si los valores salen del rango de 
-# Q1-1.5*IQR a Q3+1.5*IQR, entonces se consideran outliers
-for col in numerical_cols: #Para cada una de las columnas con valor numérico:
-    Q1 = df[col].quantile(0.25) # Defino el primer cuartil
-    Q3 = df[col].quantile(0.75) # Defino el tercer cuartil
-    IQR = Q3 - Q1 # Rango intercuartílico
+    print(f"Número de filas tras la limpieza: {len(df)}")
+    return df
 
-    # Si la variable es menor o mayor al rango intercuartílico,
-    #se guarda en una de las dos variables según cual sea su caso
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-
-    # Identifico a los outliers de la columna actual
-    col_outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)].index
-    outlier_indices.extend(col_outliers)
-
-# Guardo los índices únicos de las filas que tienen al menos un posible outlier
-# para revisar manualmente los datos y ver cuáles voy a excluir.
-unique_outlier_indices = list(set(outlier_indices))
-
-# Esto lo explico mejor en el reporte, pero elimino sólo al registro 2051 manualmente
-# por que, luego de una revisión manual de los posibles outliers, este fue el único
-# registro con un valor inconsistente en Height comparado con el resto de sus características.
-# El resto de los posibles outliers se mantuvieron debido a la consistencia de sus datos. 
-df = df.drop(index=2051)
 
 # ============================================================
-# 4. PREPARACIÓN DE LAS VARIABLES X y Y
+# 3. PREPARACIÓN DE VARIABLES (X, Y) Y ONE-HOT ENCODING
 # ============================================================
 
-df_x = df[[
-    "Sex",
-    "Length",
-    "Diameter",
-    "Height",
-    "Whole", 
-    "Shucked", 
-    "Viscera", 
-    "Shell"
-]]
+# Separo las variables en conjuntos X y Y
+def prepare_features(df: pd.DataFrame):
+    df_x = df[["Sex", "Length", "Diameter", "Height",
+               "Whole", "Shucked", "Viscera", "Shell"]]
+    df_y = df["Rings"]
 
-df_y = df["Rings"]
+    # Hago One-hot encoding a Sex, usando Sex_F como categoría de referencia
+    df_x_encoded = pd.get_dummies(df_x, columns=["Sex"], drop_first=True)
+    df_x_encoded = df_x_encoded.astype(float)
 
-# ============================================================
-# 5. ONE-HOT ENCODING
-# ============================================================
+    return df_x_encoded, df_y
 
-# Realizo one-hot encoding en la columna Sex de df_x.
-# Esto transforma a la columa Sex en dos columnas binarias:
-# Sex_I y Sex_M, usando a Sex_F como categoría de referencia
-df_x_encoded = pd.get_dummies(df_x, columns=['Sex'], drop_first=True)
-
-# Convierto sus variables en tipo numérico
-df_x_encoded = df_x_encoded.astype(float)
 
 # ============================================================
-# 6. ANÁLISIS DE CORRELACIÓN
+# 4. ANÁLISIS DE CORRELACIÓN
 # ============================================================
 
-# Combino las características codificadas con la columna 'Rings'
-combined_df = pd.concat([df_x_encoded, df_y], axis=1)
+# Calculo y grafico la matriz de correlación entre las variables
+def plot_correlation_heatmap(df_x_encoded: pd.DataFrame, df_y: pd.Series):
+    combined_df = pd.concat([df_x_encoded, df_y], axis=1)
+    correlation_matrix = combined_df.corr()
 
-# Calculo la matriz de correlación
-correlation_matrix = combined_df.corr()
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(correlation_matrix.round(2), annot=True, cmap="coolwarm", fmt=".2f")
+    plt.title("Heatmap de la Matriz de Correlación")
+    plt.show()
 
-# Genero una heat map para mostrar las correlaciones
-plt.figure(figsize=(10, 8))
-sns.heatmap(correlation_matrix.round(2), annot=True, cmap='coolwarm', fmt=".2f")
-plt.title('Heatmap de la Matriz de Correlación')
-plt.show()
-
-# ============================================================
-# 7. DIVISIÓN DEL DATASET EN TRAIN Y TEST
-# ============================================================
-
-# train_test_split hace automáticamente la división aleatoria de los datos.
-# test_size=0.2 significa que el 20% de los datos serán utilizados
-# para pruebas y el otro 80% restante serán para entrenamiento.
-# random_state=42 permite obtener siempre la misma división.
-
-x_train, x_test, y_train, y_test = train_test_split(
-    df_x_encoded,
-    df_y,
-    test_size=0.2,
-    random_state=42
-)
 
 # ============================================================
-# 8. ESTANDARIZACIÓN 
+# 5. EVALUACIÓN Y VISUALIZACIÓN DE RESULTADOS
 # ============================================================
 
-# Creo el objeto encargado de estandarizar las variables.
-scaler = StandardScaler()
+def print_metrics(label, y_real, y_pred):
+    mse_value = mean_squared_error(y_real, y_pred)
+    rmse_value = np.sqrt(mse_value)
+    r2_value = r2_score(y_real, y_pred)
+    print(f"{label} -> MSE: {mse_value:.4f} | RMSE: {rmse_value:.4f} | R²: {r2_value:.4f}")
+    return mse_value, rmse_value, r2_value
 
-# Ajusto el scaler únicamente con los datos de entrenamiento y transformo dichos datos.
-x_train_scaled = scaler.fit_transform(x_train)
 
-# Utilizo los mismos parámetros obtenidos del conjunto de entrenamiento 
-# para transformar el conjunto de prueba.
-x_test_scaled = scaler.transform(x_test)
+def plot_predictions_vs_real(y_test, y_test_pred, test_mse):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(y_test, y_test_pred, alpha=0.6, label="Predicciones del Modelo")
 
-# ============================================================
-# 9. CREACIÓN DEL MODELO
-# ============================================================
+    min_val = min(y_test.min(), y_test_pred.min())
+    max_val = max(y_test.max(), y_test_pred.max())
+    plt.plot([min_val, max_val], [min_val, max_val], "r--", lw=2, label="Predicción Ideal")
 
-# Creo una instancia para el modelo de regesión lineal y así sea más intuitivo de usar.
-model = LinearRegression()
+    plt.xlabel("Valores Reales de Rings")
+    plt.ylabel("Valores Predichos de Rings")
+    plt.title(f"Valores Reales vs. Valores Predichos de Rings (MSE: {test_mse:.2f})")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
 
-# ============================================================
-# 10. ENTRENAMIENTO DEL MODELO
-# ============================================================
-
-# Aquí el framework calcula automáticamente los parámetros
-# del modelo a usando de referencia los datos del entrenamiento.
-model.fit(x_train_scaled, y_train)
-
-# ============================================================
-# 11. PREDICCIONES
-# ============================================================
-
-# Genero las predicciones para los conjuntos de entrenamiento y de prueba
-y_train_pred = model.predict(x_train_scaled)
-y_test_pred = model.predict(x_test_scaled)
 
 # ============================================================
-# 12. EVALUACIÓN DEL MODELO
+# 6. PROGRAMA PRINCIPAL
 # ============================================================
 
-# Calculo el MSE del conjunto de entrenamiento.
-train_mse = mean_squared_error(y_train, y_train_pred)
+def main():
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    DATA_PATH = BASE_DIR / "abalone" / "abalone.data"
 
-# Calculo el MSE del conjunto de prueba.
-test_mse = mean_squared_error(y_test, y_test_pred)
+    # Fase de ETL y limpieza
+    df = load_dataset(DATA_PATH)
+    df = clean_dataset(df)
 
-# Calculo el RMSE para tener el error pero en las mismas unidades que Rings.
-train_rmse = np.sqrt(train_mse)
-test_rmse = np.sqrt(test_mse)
+    # Fase de preparación de variables y one-hot encoding
+    df_x_encoded, df_y = prepare_features(df)
+    plot_correlation_heatmap(df_x_encoded, df_y)
 
-print(f"MSE de entrenamiento: {train_mse:.4f}")
-print(f"MSE de prueba: {test_mse:.4f}")
+    # Fase de dividir Train(70%), Validation(15%) y Test (15%)
+    # Primero separo el 15% que será el conjunto de prueba.
+    x_train_val, x_test, y_train_val, y_test = train_test_split(
+        df_x_encoded, df_y, test_size=0.15, random_state=RANDOM_STATE
+    )
+    # Del 85% restante, separo la parte que le corresponde a validation
+    x_train, x_validation, y_train, y_validation = train_test_split(
+        x_train_val, y_train_val, test_size=0.15 / 0.85, random_state=RANDOM_STATE
+    )
+    print(f"x_train: {x_train.shape} | x_validation: {x_validation.shape} | x_test: {x_test.shape}")
 
-print(f"RMSE de entrenamiento: {train_rmse:.4f}")
-print(f"RMSE de prueba: {test_rmse:.4f}")
+    # Fase de estandarización (ajustada únicamente con train)
+    scaler = StandardScaler()
+    x_train_scaled = scaler.fit_transform(x_train)
+    x_validation_scaled = scaler.transform(x_validation)
+    x_test_scaled = scaler.transform(x_test)
 
-# ============================================================
-# 13. COMPARACIÓN DE PREDICCIONES
-# ============================================================
+    # Fase de creación y entrenamiento del modelo
+    model = LinearRegression()
+    model.fit(x_train_scaled, y_train)
 
-# Comparo el resultado de mis predicciones
-# con los valores reales de los registros
-first_10_predictions = y_test_pred[:10]
-first_10_actual = y_test[:10]
-# Genero un nuevo dataframe que sirva para comparar los resultados
-comparison_df = pd.DataFrame({
-    'Valores Reales': first_10_actual,
-    'Predicciones': first_10_predictions
-})
-print("\nPrimeras 10 predicciones:")
-print(comparison_df.round(2))
+    # Fase de predicciones
+    y_train_pred = model.predict(x_train_scaled)
+    y_validation_pred = model.predict(x_validation_scaled)
+    y_test_pred = model.predict(x_test_scaled)
 
-# A diferencia de la versión sin framework, aquí no tengo mse_history 
-# porque la LinearRegression encuentra directamente los 
-# valores usando mínimos cuadrados.
-# Por ende, en ese caso no voy a tener una gráfica de descenso del MSE,
-# sino una gráfica que compare los valores reales con los predichos por mi modelo.
+    # Evaluación del modelo
+    print()
+    print_metrics("Entrenamiento", y_train, y_train_pred)
+    print_metrics("Validación", y_validation, y_validation_pred)
+    print_metrics("Prueba", y_test, y_test_pred)
 
-plt.figure(figsize=(8, 6))
+    # Comparación de predicciones
+    comparison_df = pd.DataFrame({
+        "Valores Reales": y_test.iloc[:10].to_numpy(),
+        "Predicciones": y_test_pred[:10],
+    })
+    print("\nPrimeras 10 predicciones:")
+    print(comparison_df.round(2))
 
-plt.scatter(y_test, y_test_pred, alpha=0.6)
+    # Gráfica de los valores reales contra los predichos
+    # A diferencia de la versión sin framework, aquí no tengo un historial de
+    # MSE por época ya que LinearRegression resuelve la regresión de forma
+    # analítica (con mínimos cuadrados), no de forma iterativa.
+    test_mse = mean_squared_error(y_test, y_test_pred)
+    plot_predictions_vs_real(y_test, y_test_pred, test_mse)
 
-min_val = min(y_test.min(), y_test_pred.min())
-max_val = max(y_test.max(), y_test_pred.max())
 
-# Línea de predicción perfecta.
-plt.plot([min_val, max_val], [min_val, max_val], "r--", lw=2)
-plt.xlabel("Valores Reales de Rings")
-plt.ylabel("Valores Predichos de Rings")
-plt.title(f"Valores Reales vs. Valores Predichos " f"(MSE: {test_mse:.2f})")
-plt.grid(True)
-plt.show()
-
+if __name__ == "__main__":
+    main()
