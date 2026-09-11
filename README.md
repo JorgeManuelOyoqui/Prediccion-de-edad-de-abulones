@@ -87,13 +87,13 @@ pip install numpy pandas matplotlib seaborn scikit-learn
 Para ejecutar el modelo sin framework, corre en la terminal:
 ```bash
 cd "...TuRuta/Sin Framework"
-python main.py
+..\venv\Scripts\python.exe main.py
 ```
 
 Para ejecutar el modelo con framework, corre en la terminal:
 ```bash
 cd "...TuRuta/Con Framework"
-python main.py
+..\venv\Scripts\python.exe main.py
 ```
 
 Al correrlo, cada versión te devolverá sus respectivas gráficas de correlación y del resultado final qu compara las predicciones con los valores reales de Ring. Para la versión sin framework, también se muestra una gráfica que muestra el descenso de MSE a lo de las épocas.
