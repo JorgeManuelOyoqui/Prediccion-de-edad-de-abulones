@@ -85,13 +85,14 @@ def plot_correlation_heatmap(df_x_encoded: pd.DataFrame, df_y: pd.Series):
 # ============================================================
 
 def print_metrics(label, y_real, y_pred):
+    # Caclulo las métricas de evaluación MSE, RMSE y R²
     mse_value = mean_squared_error(y_real, y_pred)
     rmse_value = np.sqrt(mse_value)
     r2_value = r2_score(y_real, y_pred)
     print(f"{label} -> MSE: {mse_value:.4f} | RMSE: {rmse_value:.4f} | R²: {r2_value:.4f}")
     return mse_value, rmse_value, r2_value
 
-
+# Gráfica de los valores reales contra los predichos
 def plot_predictions_vs_real(y_test, y_test_pred, test_mse):
     plt.figure(figsize=(8, 6))
     plt.scatter(y_test, y_test_pred, alpha=0.6, label="Predicciones del Modelo")
